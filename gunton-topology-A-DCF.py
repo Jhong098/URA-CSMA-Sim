@@ -3,28 +3,29 @@ import random
 import cProfile
 
 # values of global constants as given in the assignment
-# frame_size = 1500            # bytes
+# frame_size = 50            # bytes
 # ACK_size = 30*8              # bits
-# slot_size = 20               # microseconds
+# slot_size = 9               # microseconds
 # SIFS_length = 10             # microseconds
-# DIFS_length = 40             # microseconds
-# traffic_rate = 120           # bits per slot
+# DIFS_length = 34             # microseconds
+# traffic_rate = 60           # bits per slot
 # CW0 = 4                      # slots
 # CWmax = 1024                 # slots
-# duration = 10*10**6/20       # microseconds
+# duration = 10*10**6/9       # microseconds
 
 # converted to slots
-frame_size = 1500*8                   # bits
+node_count = 1000
+frame_size = 50*8                   # bits
 ACK_size = 30*8                       # bits
 RTS_size = 30*8                       # bits
 CTS_size = 30*8                       # bits
 SIFS_length = 1                       # slots
 DIFS_length = 2                       # slots
-traffic_rate = 120                    # bits per slot
+traffic_rate = 60                    # bits per slot (3Mbps)
 CW0 = 4                               # slots
 CWmax = 1024                          # slots
 global_duration = 10*10**6/20         # slots
-frame_transmission_time = 1500*8/120  # = 100 slots
+frame_transmission_time = frame_size/traffic_rate  # 133 microsec
 ACK_transmission_time = 30*8/120      # = 2 slot
 # Note: SIFS is handled by adding 1 to ACK transmission time below.
 
@@ -162,25 +163,26 @@ class station:
         self.occupied_slots_count += 1
 
 
+def generateStations(rate):
+   return [station(f"S{i}", rate) for i in range(node_count+1)]
+
+
 class simulation:
-    def __init__(self, duration, traffic_rate, ratio):
+    def __init__(self, duration, traffic_rate):
         # duration is a global parameter measured in frames
         # rate given in frames/sec
         # (converted to frames/slot when getting interarrival times)
         self.duration = duration  # in slots
         self.traffic_rate = traffic_rate  # rate of traffic at C
-        self.ratio = ratio  # lambda_A/lambda_B
         self.slot = 0
         self.ACK_timer = 0
 
         self.channel = channel()
-
-        if self.ratio == 1:
-            self.stations = [station('A', self.traffic_rate),
-                             station('C', self.traffic_rate)]
-        if self.ratio == 2:
-            self.stations = [station('A', 2*self.traffic_rate),
-                             station('C', self.traffic_rate)]
+        self.stations = generateStations(traffic_rate)
+        print(f"generated {len(self.stations)} stations")
+        # if self.ratio == 2:
+        #     self.stations = [station('A', 2*self.traffic_rate),
+        #                      station('C', self.traffic_rate)]
 
         self.transmitting_stations = []
 
@@ -305,8 +307,8 @@ class simulation:
                     print("DIFS timer: ", self.stations[0].DIFS_timer)
                 if self.stations[0].is_in_backoff():
                     print("backoff timer: ", self.stations[0].backoff_timer)
-                if self.stations[0].is_in_rts():
-                    print("rts timer: ", self.stations[0].rts_timer)
+                # if self.stations[0].is_in_rts():
+                #     print("rts timer: ", self.stations[0].rts_timer)
                 if self.stations[0].occupation_timer_status == 'on':
                     print("occupying channel: TRUE")
                 else:
@@ -329,8 +331,8 @@ class simulation:
                     print("DIFS timer: ", self.stations[1].DIFS_timer)
                 if self.stations[1].is_in_backoff():
                     print("backoff timer: ", self.stations[1].backoff_timer)
-                if self.stations[1].is_in_rts():
-                    print("rts timer: ", self.stations[1].rts_timer)
+                # if self.stations[1].is_in_rts():
+                #     print("rts timer: ", self.stations[1].rts_timer)
                 if self.stations[1].is_in_transmission():
                     print("transmission timer: ",
                           self.stations[1].transmission_timer)
@@ -434,7 +436,7 @@ class simulation:
                         else:
                             S.set_status('transmission')
                             S.set_occupation_timer_status('on')
-                            self.ACK_timer = ACK_transmission_time + 1
+                            # self.ACK_timer = ACK_transmission_time + 1
                             # +1 takes care of SIFS
                             S.start_transmission_timer()
                 self.slot += 1
@@ -444,55 +446,30 @@ class experiment:
     def __init__(self, duration, verbose):
         self.duration = duration
         self.scenario_equal = []
-        self.scenario_unequal = []
         self.verbose = verbose
 
-        for l in [50, 100, 200, 300, 400, 500]:
-            Sim = simulation(self.duration, l, 1)
+        for l in [0.2, 1]:
+            Sim = simulation(self.duration, l)
             Sim.run(self.verbose)
             self.scenario_equal.append(Sim)
-
-            Sim = simulation(self.duration, l, 2)
-            Sim.run(self.verbose)
-            self.scenario_unequal.append(Sim)
 
         print("Throughputs | Equal rates")
         print("Format: (Station A, Station C) | Unit: Kbps")
         print([(Sim.throughputs()[0], Sim.throughputs()[1])
                for Sim in self.scenario_equal])
         print()
-        print("Throughputs | Different rates")
-        print("Format: (Station A, Station C) | Unit: Kbps")
-        print([(Sim.throughputs()[0], Sim.throughputs()[1])
-               for Sim in self.scenario_unequal])
-        print()
         print("Average delays | Equal rates")
         print("Format: (Station A, Station C) | Unit: slots")
         print([(Sim.average_delays()[0], Sim.average_delays()[1])
                for Sim in self.scenario_equal])
         print()
-        print("Average delays | Different rates")
-        print("Format: (Station A, Station C) | Unit: slots")
-        print([(Sim.average_delays()[0], Sim.average_delays()[1])
-               for Sim in self.scenario_unequal])
-        print()
         print("Collision counts | Equal rates")
         print("Unit: number of collisions")
         print([Sim.collision_count() for Sim in self.scenario_equal])
         print()
-        print("Collision counts | Different rates")
-        print("Unit: number of collisions")
-        print([Sim.collision_count() for Sim in self.scenario_unequal])
-        print()
-        print("Fairness indices | Equal rates")
-        print("Unit: unitless ratio")
-        print([Sim.fairness_index() for Sim in self.scenario_equal])
-        print()
-        print("Fairness indices | Different rates")
-        print("Unit: unitless ratio")
-        print([Sim.fairness_index() for Sim in self.scenario_unequal])
+
 
     def all(self):
         return self.scenario_equal + self.scenario_unequal
 
-cProfile.run('experiment(global_duration,False)')
+cProfile.run('experiment(global_duration,True)')
