@@ -14,7 +14,7 @@ import cProfile
 # duration = 10*10**6/9       # microseconds
 
 # converted to slots
-node_count = 1000
+node_count = 100
 frame_size = 50*8                   # bits
 ACK_size = 30*8                       # bits
 RTS_size = 30*8                       # bits
@@ -28,6 +28,8 @@ global_duration = 10*10**6/20         # slots
 frame_transmission_time = frame_size/traffic_rate  # 133 microsec
 ACK_transmission_time = 30*8/120      # = 2 slot
 # Note: SIFS is handled by adding 1 to ACK transmission time below.
+MIN_ARRIVAL_RATE = 0.2
+MAX_ARRIVAL_RATE = 1
 
 
 class channel:
@@ -100,29 +102,6 @@ class station:
                 self.next_arrival_in = int((-math.log(1-random.random())
                                             / (self.traffic_rate/factor)))
 
-    # def FAKE_update_traffic(self, name, slot):
-    #     # only station A makes a request
-    #     if name == 'A':
-    #         if self.next_arrival_in > 0:  # decrement timer
-    #             self.next_arrival_in -= 1
-    #     # update backlog if timer is now 0
-    #         else:
-    #             self.backlog = self.backlog.append(slot)
-    #             self.next_arrival_in = 3
-    #         print()
-
-    #     elif name == 'C':
-    #         self.next_arrival_in = 1
-
-    # def FAKE_update_traffic(self, name, slot):
-    #     # only both stations make requests and collide
-    #     if self.next_arrival_in > 0:  # decrement timer
-    #         self.next_arrival_in -= 1
-    #     # update backlog if timer is now 0
-    #     else:
-    #         self.backlog.append(slot)
-    #         self.next_arrival_in = 3
-
     def reset_DIFS_timer(self):
         self.DIFS_timer = DIFS_length
 
@@ -163,22 +142,21 @@ class station:
         self.occupied_slots_count += 1
 
 
-def generateStations(rate):
-   return [station(f"S{i}", rate) for i in range(node_count+1)]
+def generateStations():
+    return [station(f"S{i}", random.uniform(MIN_ARRIVAL_RATE, MAX_ARRIVAL_RATE)) for i in range(node_count+1)]
 
 
 class simulation:
-    def __init__(self, duration, traffic_rate):
+    def __init__(self, duration):
         # duration is a global parameter measured in frames
         # rate given in frames/sec
         # (converted to frames/slot when getting interarrival times)
         self.duration = duration  # in slots
-        self.traffic_rate = traffic_rate  # rate of traffic at C
         self.slot = 0
         self.ACK_timer = 0
 
         self.channel = channel()
-        self.stations = generateStations(traffic_rate)
+        self.stations = generateStations()
         print(f"generated {len(self.stations)} stations")
         # if self.ratio == 2:
         #     self.stations = [station('A', 2*self.traffic_rate),
@@ -212,14 +190,6 @@ class simulation:
     def occupied_slots_counts(self):
         return [S.occupied_slots_count for S in self.stations]
 
-    def fairness_index(self):
-        factor = 10**6/20  # slots/second
-        throughputA = self.stations[0].frames_transmitted \
-            * (frame_size/1000)/float(self.duration/factor)
-        throughputC = self.stations[1].frames_transmitted \
-            * (frame_size/1000)/float(self.duration/factor)
-        return round(throughputA/float(throughputC), 3)
-
     def run(self, verbose):
         # do this for FAKE scenarios
         # since get_next_arrival() above gives long times
@@ -228,52 +198,6 @@ class simulation:
         self.verbose = verbose
 
         while self.slot < self.duration:
-            # diagnostic messages
-            # print()
-            # print("------new slot------- #", self.slot)
-            # print("::Station A::")
-            # print("station status: ", self.stations[0].status)
-            # print("next arrival in ", self.stations[0].next_arrival_in)
-            # print("backlog: ", self.stations[0].backlog_count())
-            # if self.stations[0].is_in_DIFS():
-            #     print("DIFS timer: ", self.stations[0].DIFS_timer)
-            # if self.stations[0].is_in_backoff():
-            #     print("backoff timer: ", self.stations[0].backoff_timer)
-            # if self.stations[0].is_in_transmission():
-            #     print("transmission timer: ",
-            # self.stations[0].transmission_timer)
-            # if self.stations[0].occupation_timer_status == 'on':
-            #     print("occupying channel: TRUE")
-            # else:
-            #     print("occupying channel: FALSE")
-            # print("slots occupied: ", self.stations[0].occupied_slots_count)
-
-            # print("frames transmitted: ",
-            # self.stations[0].frames_transmitted)
-            # print()
-            # print("::Station B::")
-            # print("station status: ", self.stations[1].status)
-            # print("next arrival in ", self.stations[1].next_arrival_in)
-            # print("backlog: ", self.stations[1].backlog_count())
-            # if self.stations[1].is_in_DIFS():
-            #     print("DIFS timer: ", self.stations[1].DIFS_timer)
-            # if self.stations[1].is_in_backoff():
-            #     print("backoff timer: ", self.stations[1].backoff_timer)
-            # if self.stations[1].is_in_transmission():
-            #     print("transmission timer: ",
-            # self.stations[1].transmission_timer)
-            # if self.stations[1].occupation_timer_status == 'on':
-            #     print("occupying channel: TRUE")
-            # else:
-            #     print("occupying channel: FALSE")
-            # print("slots occupied: ", self.stations[1].occupied_slots_count)
-
-            # print("frames transmitted: ",
-            # self.stations[1].frames_transmitted)
-            # if self.ACK_timer in [1..ACK_transmission_time-1]:
-            # otherwise ACK = 2 printed during collisions etc
-            #     print("ACK timer: ", self.ACK_timer)
-            #
 
             for S in self.stations:
                 S.update_traffic(self.slot)
@@ -445,31 +369,27 @@ class simulation:
 class experiment:
     def __init__(self, duration, verbose):
         self.duration = duration
-        self.scenario_equal = []
         self.verbose = verbose
 
-        for l in [0.2, 1]:
-            Sim = simulation(self.duration, l)
-            Sim.run(self.verbose)
-            self.scenario_equal.append(Sim)
+        Sim = simulation(self.duration)
+        Sim.run(self.verbose)
 
-        print("Throughputs | Equal rates")
-        print("Format: (Station A, Station C) | Unit: Kbps")
-        print([(Sim.throughputs()[0], Sim.throughputs()[1])
-               for Sim in self.scenario_equal])
+        throughputs = Sim.throughputs()
+        avg_throughput = sum(throughputs) / len(throughputs)
+
+        avg_delays = Sim.average_delays()
+        avg_delay = sum(avg_delays) / len(avg_delays)
+
+        print("Throughputs | Unit: Kbps")
+        print(avg_throughput)
         print()
-        print("Average delays | Equal rates")
-        print("Format: (Station A, Station C) | Unit: slots")
-        print([(Sim.average_delays()[0], Sim.average_delays()[1])
-               for Sim in self.scenario_equal])
+        print("Average delays | Unit: slots")
+        print(avg_delay)
         print()
         print("Collision counts | Equal rates")
         print("Unit: number of collisions")
-        print([Sim.collision_count() for Sim in self.scenario_equal])
+        print(Sim.collision_count())
         print()
 
-
-    def all(self):
-        return self.scenario_equal + self.scenario_unequal
 
 cProfile.run('experiment(global_duration,True)')
