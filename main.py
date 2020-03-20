@@ -24,7 +24,7 @@ DIFS_length = 2                       # slots
 traffic_rate = 60                    # bits per slot (3Mbps)
 CW0 = 4                               # slots
 CWmax = 1024                          # slots
-global_duration = 10*10**6/20         # slots
+global_duration = 100*10**6/20         # slots
 frame_transmission_time = frame_size/traffic_rate  # 133 microsec
 ACK_transmission_time = 30*8/120      # = 2 slot
 # Note: SIFS is handled by adding 1 to ACK transmission time below.
@@ -64,6 +64,8 @@ class station:
         self.occupation_timer_status = 'off'
         self.occupied_slots_count = 0
 
+        self.total_frames_gen = 0
+
     def backlog_count(self):
         return len(self.backlog)
 
@@ -87,8 +89,9 @@ class station:
         # traffic_rate given in frames / second
         # so divide traffic_rate by number of slots per second
         factor = 10**6/20  # slots/second
-        self.next_arrival_in = int((-math.log(1-random.random())
+        self.next_arrival_in = int((-math.log(1-random.uniform(0, 1))
                                     / (self.traffic_rate/factor)))
+        self.total_frames_gen += 1
 
     def update_traffic(self, slot):
         # need to make sure we never randomly generate 0
@@ -98,10 +101,12 @@ class station:
         # update backlog if timer is now 0
         else:
             self.backlog.append(slot)
+            # print(f"updating backlog: {self.backlog}")
             while self.next_arrival_in == 0:
                 factor = 10**6/20
-                self.next_arrival_in = int((-math.log(1-random.random())
+                self.next_arrival_in = int((-math.log(1-random.uniform(0, 1))
                                             / (self.traffic_rate/factor)))
+                self.total_frames_gen += 1
 
     def reset_DIFS_timer(self):
         self.DIFS_timer = DIFS_length
@@ -164,6 +169,7 @@ class simulation:
         #                      station('C', self.traffic_rate)]
 
         self.transmitting_stations = []
+        self.total_frame_count = []
 
         for S in self.stations:
             S.get_next_arrival()
@@ -190,10 +196,12 @@ class simulation:
             delay_len = len(S.delay_list)
             delay_sum = sum(S.delay_list)
             avg = delay_sum/delay_len if delay_len != 0 else 0
-            print(avg)
             delays.append(avg or 0)
 
         return delays
+
+    def get_total_frame_count(self):
+        return [S.total_frames_gen for S in self.stations]
 
     def occupied_slots_counts(self):
         return [S.occupied_slots_count for S in self.stations]
@@ -204,16 +212,21 @@ class simulation:
         # for S in self.stations:
         #     S.next_arrival_in = 3
         self.verbose = verbose
+        print(f"duration: {self.duration}")
 
         while self.slot < self.duration:
+            # print(self.slot)
 
             for S in self.stations:
                 S.update_traffic(self.slot)
+                # print(S.next_arrival_in)
                 # S.FAKE_update_traffic(S.name)
 
             # populate self.backlogged_stations
             self.backlogged_stations = [S for S in self.stations
                                         if S.is_backlogged()]
+
+            # print(f"# of backlogged: {len(self.backlogged_stations)}")
 
             # populate self.transmitting_stations
             self.transmitting_stations = [S for S in self.stations
@@ -306,9 +319,13 @@ class simulation:
                     elif S.is_in_backoff():
                         pass  # freezes backoff timer
 
+                # print(f"# of trans st: {len(self.transmitting_stations)}")
                 # now deal with transmitting stations
                 if len(self.transmitting_stations) < 2:  # ACK; no collision
+
                     S = self.transmitting_stations[0]
+                    # print(f"transmitting {S.transmission_timer}")
+
                     if S.transmission_timer > 0:
                         S.decrement_transmission_timer()
                     else:
@@ -399,6 +416,8 @@ class experiment:
         print("Unit: number of collisions")
         print(Sim.collision_count())
         print()
+
+        print(f"Total generated: {Sim.get_total_frame_count()}")
 
 
 cProfile.run('experiment(global_duration,True)')
