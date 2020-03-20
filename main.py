@@ -28,8 +28,9 @@ global_duration = 10*10**6/20         # slots
 frame_transmission_time = frame_size/traffic_rate  # 133 microsec
 ACK_transmission_time = 30*8/120      # = 2 slot
 # Note: SIFS is handled by adding 1 to ACK transmission time below.
-MIN_ARRIVAL_RATE = 0.2
+MIN_ARRIVAL_RATE = 0.2  # frames/s
 MAX_ARRIVAL_RATE = 1
+MAX_RETRANSMITS = 1
 
 
 class channel:
@@ -184,8 +185,15 @@ class simulation:
         return [S.delay_list for S in self.stations]
 
     def average_delays(self):
-        return [int(sum(S.delay_list)/float(len(S.delay_list)))
-                for S in self.stations]
+        delays = []
+        for S in self.stations:
+            delay_len = len(S.delay_list)
+            delay_sum = sum(S.delay_list)
+            avg = delay_sum/delay_len if delay_len != 0 else 0
+            print(avg)
+            delays.append(avg or 0)
+
+        return delays
 
     def occupied_slots_counts(self):
         return [S.occupied_slots_count for S in self.stations]
@@ -309,6 +317,7 @@ class simulation:
                         else:                           # ACK received!
                             S.increment_frames_transmitted()
                             S.delay_list.append(self.slot-S.backlog[0])
+                            # print("appending delay")
                             S.backlog = S.backlog[1:]
 
                             S.set_occupation_timer_status('off')
@@ -386,7 +395,7 @@ class experiment:
         print("Average delays | Unit: slots")
         print(avg_delay)
         print()
-        print("Collision counts | Equal rates")
+        print("Collision counts")
         print("Unit: number of collisions")
         print(Sim.collision_count())
         print()
