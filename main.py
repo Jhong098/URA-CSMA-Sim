@@ -14,7 +14,7 @@ import cProfile
 # duration = 10*10**6/9       # microseconds
 
 # converted to slots
-node_count = 100
+node_count = 500
 frame_size = 50*8                   # bits
 ACK_size = 30*8                       # bits
 RTS_size = 30*8                       # bits
