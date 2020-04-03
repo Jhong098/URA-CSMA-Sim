@@ -1,6 +1,7 @@
 import math
 import random
 import cProfile
+import csv
 
 # values of global constants as given in the assignment
 # frame_size = 50            # bytes
@@ -14,7 +15,7 @@ import cProfile
 # duration = 10*10**6/9       # microseconds
 
 # converted to slots
-node_count = 500
+node_count = 100
 frame_size = 50*8                   # bits
 ACK_size = 30*8                       # bits
 RTS_size = 30*8                       # bits
@@ -65,6 +66,10 @@ class station:
         self.occupied_slots_count = 0
 
         self.total_frames_gen = 0
+        self.collision_count = 0
+
+    def report(self):
+        return (self.total_frames_gen, self.collision_count)
 
     def backlog_count(self):
         return len(self.backlog)
@@ -199,6 +204,15 @@ class simulation:
             delays.append(avg or 0)
 
         return delays
+
+    def export_csv(self):
+        for i in range(len(self.stations)):
+            with open("report.csv", mode="w") as f:
+                headers = ["station #", "packets generated", "collisions"]
+                writer = csv.DictWriter(f, fieldnames=headers)
+                writer.writeheader()
+                writer.writerow(
+                    {"station #": i, "packets generated": self.stations[i].total_frames_gen, "collisions": self.stations[i].collision_count})
 
     def get_total_frame_count(self):
         return [S.total_frames_gen for S in self.stations]
@@ -418,6 +432,8 @@ class experiment:
         print()
 
         print(f"Total generated: {Sim.get_total_frame_count()}")
+
+        Sim.export_csv()
 
 
 cProfile.run('experiment(global_duration,True)')
