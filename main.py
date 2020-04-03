@@ -3,19 +3,8 @@ import random
 import cProfile
 import csv
 
-# values of global constants as given in the assignment
-# frame_size = 50            # bytes
-# ACK_size = 30*8              # bits
-# slot_size = 9               # microseconds
-# SIFS_length = 10             # microseconds
-# DIFS_length = 34             # microseconds
-# traffic_rate = 60           # bits per slot
-# CW0 = 4                      # slots
-# CWmax = 1024                 # slots
-# duration = 10*10**6/9       # microseconds
-
 # converted to slots
-node_count = 100
+node_count = 500
 frame_size = 50*8                   # bits
 ACK_size = 30*8                       # bits
 RTS_size = 30*8                       # bits
@@ -25,21 +14,19 @@ DIFS_length = 2                       # slots
 traffic_rate = 60                    # bits per slot (3Mbps)
 CW0 = 4                               # slots
 CWmax = 1024                          # slots
-global_duration = 100*10**6/20         # slots
+SIM_TIME_SECONDS = 100
+global_duration = SIM_TIME_SECONDS*10**6/20         # slots
 frame_transmission_time = frame_size/traffic_rate  # 133 microsec
 ACK_transmission_time = 30*8/120      # = 2 slot
 # Note: SIFS is handled by adding 1 to ACK transmission time below.
-MIN_ARRIVAL_RATE = 0.2  # frames/s
-MAX_ARRIVAL_RATE = 1
+MIN_ARRIVAL_RATE = 2  # frames/s
+MAX_ARRIVAL_RATE = 10
 MAX_RETRANSMITS = 1
 
 
 class channel:
     def __init__(self):
         self.status = 'idle'
-
-    def status(self):
-        return self.status
 
     def set_status(self, status):
         self.status = status
@@ -67,9 +54,6 @@ class station:
 
         self.total_frames_gen = 0
         self.collision_count = 0
-
-    def report(self):
-        return (self.total_frames_gen, self.collision_count)
 
     def backlog_count(self):
         return len(self.backlog)
@@ -136,6 +120,7 @@ class station:
 
     def next_CW(self):
         if self.CW < CWmax:
+            self.collision_count += 1
             self.CW = 2*self.CW
         else:
             pass
@@ -154,7 +139,7 @@ class station:
 
 
 def generateStations():
-    return [station(f"S{i}", random.uniform(MIN_ARRIVAL_RATE, MAX_ARRIVAL_RATE)) for i in range(node_count+1)]
+    return [station(f"S{i}", random.uniform(MIN_ARRIVAL_RATE, MAX_ARRIVAL_RATE)) for i in range(node_count)]
 
 
 class simulation:
@@ -206,11 +191,12 @@ class simulation:
         return delays
 
     def export_csv(self):
-        for i in range(len(self.stations)):
-            with open("report.csv", mode="w") as f:
-                headers = ["station #", "packets generated", "collisions"]
-                writer = csv.DictWriter(f, fieldnames=headers)
-                writer.writeheader()
+        with open("report.csv", mode="w") as f:
+            headers = ["station #", "packets generated", "collisions"]
+            writer = csv.DictWriter(f, fieldnames=headers)
+            writer.writeheader()
+
+            for i in range(len(self.stations)):
                 writer.writerow(
                     {"station #": i, "packets generated": self.stations[i].total_frames_gen, "collisions": self.stations[i].collision_count})
 
@@ -220,14 +206,7 @@ class simulation:
     def occupied_slots_counts(self):
         return [S.occupied_slots_count for S in self.stations]
 
-    def run(self, verbose):
-        # do this for FAKE scenarios
-        # since get_next_arrival() above gives long times
-        # for S in self.stations:
-        #     S.next_arrival_in = 3
-        self.verbose = verbose
-        print(f"duration: {self.duration}")
-
+    def run(self):
         while self.slot < self.duration:
             # print(self.slot)
 
@@ -249,63 +228,6 @@ class simulation:
             # set channel to busy if some station is transmitting
             if len(self.transmitting_stations) > 0:
                 self.channel.set_status('busy')
-            # print()
-            # print("channel status: ", self.channel.status)
-
-            # diagnostic messages
-            if self.verbose == 'verbose':
-                print()
-                print("------new slot-------", self.slot)
-                print("channel status: ", self.channel.status)
-                print()
-                print("::Station A::")
-                print("station status: ", self.stations[0].status)
-                print("next arrival in ", self.stations[0].next_arrival_in)
-                print("backlog: ", self.stations[0].backlog_count())
-                if self.stations[0].is_in_DIFS():
-                    print("DIFS timer: ", self.stations[0].DIFS_timer)
-                if self.stations[0].is_in_backoff():
-                    print("backoff timer: ", self.stations[0].backoff_timer)
-                # if self.stations[0].is_in_rts():
-                #     print("rts timer: ", self.stations[0].rts_timer)
-                if self.stations[0].occupation_timer_status == 'on':
-                    print("occupying channel: TRUE")
-                else:
-                    print("occupying channel: FALSE")
-                print("slots occupied: ",
-                      self.stations[0].occupied_slots_count)
-                print("frames transmitted: ",
-                      self.stations[0].frames_transmitted)
-                # if self.stations[0].CTS_trans_ACK_timer in
-                # [1..CTS_transmission_time + ACK_transmission_time +
-                # frame_transmission_time + 3 - 1]: # otherwise ACK = 2
-                # printed during collisions etc
-                # print("CTS_trans_ACK timer: ", self.CTS_trans_ACK_timer)
-                print()
-                print("::Station B::")
-                print("station status: ", self.stations[1].status)
-                print("next arrival in ", self.stations[1].next_arrival_in)
-                print("backlog: ", self.stations[1].backlog_count())
-                if self.stations[1].is_in_DIFS():
-                    print("DIFS timer: ", self.stations[1].DIFS_timer)
-                if self.stations[1].is_in_backoff():
-                    print("backoff timer: ", self.stations[1].backoff_timer)
-                # if self.stations[1].is_in_rts():
-                #     print("rts timer: ", self.stations[1].rts_timer)
-                if self.stations[1].is_in_transmission():
-                    print("transmission timer: ",
-                          self.stations[1].transmission_timer)
-                if self.stations[1].occupation_timer_status == 'on':
-                    print("occupying channel: TRUE")
-                else:
-                    print("occupying channel: FALSE")
-                print("slots occupied: ",
-                      self.stations[1].occupied_slots_count)
-                print("frames transmitted: ",
-                      self.stations[1].frames_transmitted)
-                #
-                # if self.slot%10000 == 0:
-                #     print(self.slot)
 
             # if no station is backlogged, nothing happens
             # note: you are "backlogged" with frame
@@ -369,12 +291,13 @@ class simulation:
                             S.decrement_transmission_timer()
                     else:
                         self.collision_counter += 1
-                        for S in self.stations:
+                        for S in self.transmitting_stations:
                             S.next_CW()
                             S.set_status('backoff')
                             S.set_occupation_timer_status('off')
                             S.get_random_backoff_time()
                             self.channel.set_status('idle')
+
                 self.slot += 1
 
         # scenario: channel is idle (and some station is backlogged)
@@ -407,12 +330,10 @@ class simulation:
 
 
 class experiment:
-    def __init__(self, duration, verbose):
+    def __init__(self, duration):
         self.duration = duration
-        self.verbose = verbose
-
         Sim = simulation(self.duration)
-        Sim.run(self.verbose)
+        Sim.run()
 
         throughputs = Sim.throughputs()
         avg_throughput = sum(throughputs) / len(throughputs)
@@ -420,6 +341,8 @@ class experiment:
         avg_delays = Sim.average_delays()
         avg_delay = sum(avg_delays) / len(avg_delays)
 
+        print(f"Ran simulation for: {SIM_TIME_SECONDS}")
+        print(f"Arrival Rate: {MIN_ARRIVAL_RATE} - {MAX_ARRIVAL_RATE}")
         print("Throughputs | Unit: Kbps")
         print(avg_throughput)
         print()
@@ -436,4 +359,4 @@ class experiment:
         Sim.export_csv()
 
 
-cProfile.run('experiment(global_duration,True)')
+cProfile.run('experiment(global_duration)')
