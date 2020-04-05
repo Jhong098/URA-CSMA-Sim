@@ -1,2 +1,9 @@
-# CSMACS-simulation
-Simulation of 802.11 routing protocol with DCF function. This was done as part as an assignment for a course in computer networks in Fall 2016.
+# CSMA/CA Simulation
+
+## How to run
+
+Modify parameters in `main.py`
+
+`python3 main.py`
+
+A CSV file named "report.csv" will be generated with the collision probability stats

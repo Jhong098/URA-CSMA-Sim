@@ -1,2 +1,0 @@
-- retransmission (max = N)
-- export per station stats (packets transmitted, collisions)

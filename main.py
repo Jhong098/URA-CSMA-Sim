@@ -1,10 +1,10 @@
 import math
 import random
-import cProfile
+# import cProfile
 import csv
 
 # converted to slots
-node_count = 1000
+node_count = 500
 frame_size = 50*8                   # bits
 ACK_size = 30*8                       # bits
 RTS_size = 30*8                       # bits
@@ -17,9 +17,10 @@ CWmax = 1024                          # slots
 SIM_TIME_SECONDS = 100
 global_duration = SIM_TIME_SECONDS*10**6/20         # slots
 frame_transmission_time = frame_size/traffic_rate  # 133 microsec
-ACK_transmission_time = 30*8/120      # = 2 slot
-# Note: SIFS is handled by adding 1 to ACK transmission time below.
-MIN_ARRIVAL_RATE = 1  # frames/s
+# ACK_transmission_time = 30*8/120      # = 2 slot
+
+# Arrival rates (frames/s)
+MIN_ARRIVAL_RATE = 1
 MAX_ARRIVAL_RATE = 5
 
 
@@ -305,14 +306,6 @@ class simulation:
 
                     self.channel.set_status('idle')
 
-                    # for S in self.transmitting_stations:
-                    #     S.next_CW()
-                    #     S.collision_count += 1
-                    #     S.set_status('backoff')
-                    #     S.set_occupation_timer_status('off')
-                    #     S.get_random_backoff_time()
-                    #     self.channel.set_status('idle')
-
                 self.slot += 1
 
         # scenario: channel is idle (and some station is backlogged)
@@ -368,10 +361,9 @@ class experiment:
         print("Unit: number of collisions")
         print(Sim.collision_count())
         print()
-
-        print(f"Total generated: {Sim.get_total_frame_count()}")
-
+        # print(f"Total generated: {Sim.get_total_frame_count()}")
         Sim.export_csv()
 
 
-cProfile.run('experiment(global_duration)')
+# cProfile.run('experiment(global_duration)')
+experiment(global_duration)
