@@ -4,7 +4,7 @@ import cProfile
 import csv
 
 # converted to slots
-node_count = 500
+node_count = 1000
 frame_size = 50*8                   # bits
 ACK_size = 30*8                       # bits
 RTS_size = 30*8                       # bits
@@ -21,7 +21,6 @@ ACK_transmission_time = 30*8/120      # = 2 slot
 # Note: SIFS is handled by adding 1 to ACK transmission time below.
 MIN_ARRIVAL_RATE = 1  # frames/s
 MAX_ARRIVAL_RATE = 5
-MAX_RETRANSMITS = 1
 
 
 class channel:
@@ -54,6 +53,7 @@ class station:
 
         self.total_frames_gen = 0
         self.collision_count = 0
+        self.total_frames_dropped = 0
 
     def backlog_count(self):
         return len(self.backlog)
@@ -196,7 +196,11 @@ class simulation:
             for i in range(len(self.stations)):
                 S = self.stations[i]
                 writer.writerow(
-                    {"station #": i, "packets_transmitted": S.frames_transmitted, "collisions": S.collision_count, "collision_prob": S.collision_count/S.frames_transmitted})
+                    {
+                        "station #": i,
+                        "packets_transmitted": S.frames_transmitted,
+                        "collisions": S.collision_count,
+                        "collision_prob": S.collision_count/S.frames_transmitted if S.frames_transmitted else 1})
 
     def get_total_frame_count(self):
         return [S.total_frames_gen for S in self.stations]
@@ -282,19 +286,32 @@ class simulation:
                         self.channel.set_status('idle')
 
                 else:   # collision imminent or occurring
-                    for s in self.transmitting_stations:
-                        if s.transmission_timer > 0:
-                            s.decrement_transmission_timer()
-
                     self.collision_counter += 1
+                    for s in self.stations:
+                        s.reset_CW()
+                        if s.is_in_transmission():
+                            s.collision_count += 1
+                            s.total_frames_dropped += 1
 
-                    for S in self.transmitting_stations:
-                        S.next_CW()
-                        S.collision_count += 1
-                        S.set_status('backoff')
-                        S.set_occupation_timer_status('off')
-                        S.get_random_backoff_time()
-                        self.channel.set_status('idle')
+                            s.backlog = s.backlog[1:]  # no retransmission
+
+                        if s.is_backlogged():
+                            s.set_status('DIFS')
+                            if s.DIFS_timer == 0:
+                                s.reset_DIFS_timer()
+                        else:
+                            s.set_status('waiting')
+                            s.set_occupation_timer_status('off')
+
+                    self.channel.set_status('idle')
+
+                    # for S in self.transmitting_stations:
+                    #     S.next_CW()
+                    #     S.collision_count += 1
+                    #     S.set_status('backoff')
+                    #     S.set_occupation_timer_status('off')
+                    #     S.get_random_backoff_time()
+                    #     self.channel.set_status('idle')
 
                 self.slot += 1
 
